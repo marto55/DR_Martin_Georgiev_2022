@@ -6,7 +6,16 @@
 #define lcdColumns 16
 #define lcdRows 2
 // To get display address, run an I2C scanner sketch, default is 0x27
-LiquidCrystal_I2C lcd(0x27, lcdColumns, lcdRows);  
+LiquidCrystal_I2C lcd(0x27, lcdColumns, lcdRows);
+
+// Set amperemeter pin
+#define amperemeter_pin 14
+// amperemeter ACS712 (version up to 5A) raises output voltage with 185mV per 1A
+// points_per_amp = 0.185 / 3.34 * 4096, where 3.34 is the work voltage of esp32 and 4096 is the resolution ot the ADC
+#define miliamps_per_point 0.0
+// ACS712 output range starts from 2.5V, that means 2.5V (read as 3065 points by the ADC) is 0A
+// 3065 is adjusted to 2890 to level inaccuracies of the system
+#define offset_in_points 2890
 
 // Set pin numbers for LDR voltage dividers
 #define ldr_pin_1 13
@@ -47,11 +56,12 @@ void setup() {
   myservo.attach(servo_pin_1, 1000, 2000); // Attaches the servo on pin 18 to the servo object
 }
 
+// function taht reseives number of pin that is connected to Vout of voltage divider using known resistor of "R1" ohms 
 int measure_resistance(int input_pin){
     int raw = analogRead(input_pin); // Get input from ADC pin (ranging from 0-4096 equal to 0-3.3V)
     if(raw){
       float buffer = raw * Vin;
-      float Vout = buffer/4095; // Calculate voltage drop on second resistor
+      float Vout = buffer/ 4095; // Calculate voltage drop on second resistor
       buffer = (Vin/Vout) -1;
       int R2 = R1 / buffer; // Calculate resistance knowing that R1 is 51K ohms
       return R2;
@@ -59,16 +69,29 @@ int measure_resistance(int input_pin){
     return -1; // If analogRead() didn't yield proper value return -1
 }
 
+// functin that measures the input of ACS712 amperemeter connected  to amperemeter_pin an returns miliamps
+float measure_current(){
+    int raw = analogRead(amperemeter_pin); // Get input from ADC pin (ranging from 0-4096 equal to 0-3.3V)
+    if(raw){
+      float buffer = raw * Vin;
+      float Vout = (buffer/ 4095) - 2.33; // 2.35V is the base ouput whaen the amperemeter is under 0 load
+      float miliamps = Vout / 0.185;  // upshift of 185 mV equals 1A
+      return miliamps;
+    }
+    return -1; // If analogRead() didn't yield proper value return -1
+}
+
+
 void loop() {
   // Get measurement for LDR1
   int ldr1 = measure_resistance(ldr_pin_1) * ldr_multiplier_1; 
-  Serial.print("LDR 1: ");
-  Serial.println( ldr1 );
+  //Serial.println("LDR 1: " + String(ldr1));
 
   // Get measurement for LDR2
   int ldr2 = measure_resistance(ldr_pin_2) * ldr_multiplier_2;
-  Serial.print("LDR 2: ");
-  Serial.println( ldr2 );
+  //Serial.println("LDR 2: " + String(ldr2));
+
+  
 
   // Compare LDR1 and LDR2 and move the servo towards the brighter side
   if( (ldr1 - ldr2) > (ldr1+ldr2)/2 * 0.2 ){
@@ -79,5 +102,7 @@ void loop() {
     }
     
   myservo.write(servo_position);
-  delay(50);
+  // Get measurement from ammperemeter
+  float current = measure_current();
+  Serial.println("Current: " + String(current));
 }
