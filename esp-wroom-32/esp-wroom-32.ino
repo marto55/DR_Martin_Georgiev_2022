@@ -49,7 +49,13 @@ void loop() {
   Serial.print("LDR 2: ");
   Serial.println( ldr2 );
 
-  // Move servo
+  // Compare LDR1 and LDR2 and move the servo towards the brighter side
+  if( (ldr1 - ldr2) > (ldr1+ldr2)/2 * 0.3 ){
+    if(servo_position < 180) servo_position ++;
+  }
+  if( (ldr2 - ldr1) > (ldr1+ldr2)/2 * 0.3 ){
+    if(servo_position > 0) servo_position --;
+  }
   myservo.write(servo_position);
 
   delay(50);
