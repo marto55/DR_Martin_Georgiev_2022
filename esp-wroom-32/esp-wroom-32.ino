@@ -81,7 +81,6 @@ float measure_current(){
     return -1; // If analogRead() didn't yield proper value return -1
 }
 
-
 void loop() {
   // Get measurement for LDR1
   int ldr1 = measure_resistance(ldr_pin_1) * ldr_multiplier_1; 
@@ -90,8 +89,6 @@ void loop() {
   // Get measurement for LDR2
   int ldr2 = measure_resistance(ldr_pin_2) * ldr_multiplier_2;
   //Serial.println("LDR 2: " + String(ldr2));
-
-  
 
   // Compare LDR1 and LDR2 and move the servo towards the brighter side
   if( (ldr1 - ldr2) > (ldr1+ldr2)/2 * 0.2 ){
@@ -102,7 +99,9 @@ void loop() {
     }
     
   myservo.write(servo_position);
+  
   // Get measurement from ammperemeter
   float current = measure_current();
   Serial.println("Current: " + String(current));
+  
 }
