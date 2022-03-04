@@ -1,7 +1,7 @@
 from django.db import models
 
-class reading(models.Model):
+class Reading(models.Model):
     current = models.FloatField()
-    vlotage = models.FloatField()
+    voltage = models.FloatField()
     wattage = models.FloatField()
     temperature = models.FloatField()
