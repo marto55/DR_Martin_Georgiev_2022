@@ -15,7 +15,7 @@ def handle_esp_reading(request):
             current = json.loads(request.body)["current"]
             voltage = json.loads(request.body)["voltage"]
             temperature = json.loads(request.body)["temperature"]
-            wattage = current * voltage
+            wattage = round( current * voltage, 2) 
         
             my_reading = Reading()
             my_reading.current = current
