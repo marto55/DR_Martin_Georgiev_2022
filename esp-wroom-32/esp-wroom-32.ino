@@ -3,7 +3,6 @@
 #include <Wire.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include <ArduinoJson.h>
 
 // constants required for WiFi connection
 #define ssid "Tech_D3786836"
@@ -29,6 +28,12 @@ LiquidCrystal_I2C lcd(0x27, lcdColumns, lcdRows);
 
 // Set temperature sensor pin
 #define temperature_sensor_pin 25
+// value of R1 on temperature sensor board
+#define R1 10000 
+//steinhart-hart coeficients for thermistor
+#define c1 0.001129148
+#define c2 0.000234125
+#define c3 0.0000000876741
 
 // Set amperemeter pin
 #define amperemeter_pin 35
@@ -199,11 +204,14 @@ float measure_voltage(){
 
 // functin that measures the input of temperature sensor TU K13 an returns degrees Celsius
 float measure_temperature(){
-    float input = analogRead(temperature_sensor_pin);
-    Serial.print( "Temperature:  " );
-    Serial.println( input / 20 ); // Not very accurate
-    //  better solution will be found
-    return input / 20;
+    int input = analogRead(temperature_sensor_pin);
+    float R2 = R1 * (1023.0 / (float)input - 1); //calculate resistance on thermistor
+    float logR2 = log(R2);
+    float T = (1.0 / (c1 + c2*logR2 + c3*logR2*logR2*logR2)); // temperature in Kelvin
+    T = T - 273.15; //convert Kelvin to Celcius
+    //Serial.println("Temperature: " + String(T) + " C"); 
+    return T;
+
 }
 
 void controll_servo(){
