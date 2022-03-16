@@ -88,7 +88,7 @@ WSGI_APPLICATION = 'Django_Postgre_Server.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': 'esp_data', 
+        'NAME': 'Solar_Data', 
         'USER': 'postgres', 
         'PASSWORD': 'gogo-m',
         'HOST': '127.0.0.1', 
