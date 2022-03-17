@@ -28,8 +28,8 @@ LiquidCrystal_I2C lcd(0x27, lcdColumns, lcdRows);
 
 // Set temperature sensor pin
 #define temperature_sensor_pin 25
-// value of R1 on temperature sensor board
-#define R1 10000 
+// value of R1_temperature_sensor on temperature sensor board
+#define R1_temperature_sensor 10000 
 //steinhart-hart coeficients for thermistor
 #define c1 0.001129148
 #define c2 0.000234125
@@ -47,20 +47,27 @@ LiquidCrystal_I2C lcd(0x27, lcdColumns, lcdRows);
 // Set pin numbers for LDR voltage dividers
 #define ldr_pin_1 33
 #define ldr_pin_2 32
+#define ldr_pin_3 34
+#define ldr_pin_4 35
 // Since LDRs aren't precisely equal, different multipliers will be used to level their accuracy 
 #define ldr_multiplier_1 1
 #define ldr_multiplier_2 1
+#define ldr_multiplier_3 1.1
+#define ldr_multiplier_4 0.9
 
 //constants required for measure_resistance()
 #define R1 51000 // the resistance of the known resistor
 #define Vin 3.34 // the voltage across both resistors
 
-// Set servo pin
-#define servo_pin_1 18 
-// Servo object dervived from ESP32Servo.h to control a servo
-Servo myservo;
-// Variable to store the servo position
-int servo_position = 0; 
+// Set servo pins
+#define servo_pin_1 18
+#define servo_pin_2 19
+// Servo objects dervived from ESP32Servo.h to control the servos
+Servo servo_1;
+Servo servo_2;
+// Variables to store the servo positions
+int servo_position_1 = 90; 
+int servo_position_2 = 90; 
 
 // function that prints "Connecting to WiFi.." on the LCD
 void lcd_print_connecting(){
@@ -104,6 +111,18 @@ int send_data(){
     float voltage = measure_voltage();
     // Get measurement from temperature sensor
     float temperature = measure_temperature();
+
+    // Take multiple measurements
+    for(int i = 0; i<4; i++){
+      delay(50);
+      current += measure_current();
+      voltage += measure_voltage();
+      temperature += measure_temperature();
+    }
+    // Average the measurements and for greater accuracy
+    current /= 5;
+    voltage /= 5;
+    temperature /= 5;
 
     // Create HTTP client and point it to the address of the server
     HTTPClient http;   
@@ -167,10 +186,12 @@ void setup() {
   ESP32PWM::allocateTimer(2);
   ESP32PWM::allocateTimer(3);
   // Standard 50 hz servo (20ms wavelenght), this is the required frequency for the MG996R servo
-  myservo.setPeriodHertz(50);
+  servo_1.setPeriodHertz(50);
+  servo_2.setPeriodHertz(50);
   // Attaches the servo on pin 18 to the servo object
-  // 1000 and 2000 specify the range (reach) of the servo which in reality is 120 degrees
-  myservo.attach(servo_pin_1, 1000, 2000); 
+  // 500 and 4000 specify the range (reach) of the servo which in reality is 120 degrees
+  servo_1.attach(servo_pin_1, 500, 4000);
+  servo_2.attach(servo_pin_2, 500, 4000); 
 }
 
 // function reseiving number of pin connected to Vout of voltage divider using known resistor of "R1" ohms 
@@ -205,7 +226,7 @@ float measure_voltage(){
 // functin that measures the input of temperature sensor TU K13 an returns degrees Celsius
 float measure_temperature(){
     int input = analogRead(temperature_sensor_pin);
-    float R2 = R1 * (1023.0 / (float)input - 1); //calculate resistance on thermistor
+    float R2 = R1_temperature_sensor * (1023.0 / (float)input - 1); //calculate resistance on thermistor
     float logR2 = log(R2);
     float T = (1.0 / (c1 + c2*logR2 + c3*logR2*logR2*logR2)); // temperature in Kelvin
     T = T - 273.15; //convert Kelvin to Celcius
@@ -218,20 +239,36 @@ void controll_servo(){
   // Get measurement for LDR1
   int ldr1 = measure_resistance(ldr_pin_1) * ldr_multiplier_1; 
   //Serial.println("LDR 1: " + String(ldr1));
-
   // Get measurement for LDR2
   int ldr2 = measure_resistance(ldr_pin_2) * ldr_multiplier_2;
   //Serial.println("LDR 2: " + String(ldr2));
 
   // Compare LDR1 and LDR2 and move the servo towards the brighter side
-  if( (ldr1 - ldr2) > (ldr1+ldr2)/2 * 0.2 ){
-    if(servo_position < 180) servo_position ++;
+  if( (ldr1 - ldr2) > (ldr1 + ldr2)/2 * 0.2 ){
+    if(servo_position_1 < 180) servo_position_1 ++;
     }
-    if( (ldr2 - ldr1) > (ldr1+ldr2)/2 * 0.2 ){
-      if(servo_position > 0) servo_position --;
+    if( (ldr2 - ldr1) > (ldr1 + ldr2)/2 * 0.2 ){
+      if(servo_position_1 > 0) servo_position_1 --;
     }
   // Move servo one
-  myservo.write(servo_position);  
+  servo_1.write(servo_position_1);
+
+  // Get measurement for LDR1
+  int ldr3 = measure_resistance(ldr_pin_3) * ldr_multiplier_3; 
+  //Serial.println("LDR 3: " + String(ldr3));
+  // Get measurement for LDR2
+  int ldr4 = measure_resistance(ldr_pin_4) * ldr_multiplier_4;
+  //Serial.println("LDR 4: " + String(ldr4));
+
+  // Compare LDR1 and LDR2 and move the servo towards the brighter side
+  if( (ldr3 - ldr4) > (ldr3 + ldr4)/2 * 0.2 ){
+    if(servo_position_2 < 180) servo_position_2 ++;
+    }
+    if( (ldr3 - ldr4) > (ldr3 + ldr4)/2 * 0.2 ){
+      if(servo_position_2 > 0) servo_position_2 --;
+    }
+  // Move servo one
+  servo_2.write(servo_position_2);
 }
 
 void loop() {
