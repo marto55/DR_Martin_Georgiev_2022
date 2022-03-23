@@ -11,11 +11,11 @@
 
 // the following variables are unsigned longs because the time, measured in
 // milliseconds, will quickly become a bigger number than can be stored in an int.
-unsigned long lastTime = 0;
+unsigned long last_time = 0;
 // Timer set to 10 minutes (600000)
-//unsigned long timerDelay = 600000;
+//#define timerDelay 600000
 // Set timer to 5 seconds (5000)
-unsigned long timerDelay = 5000;
+#define timer_delay 5000
 
 // set the LCD number of columns and rows
 #define lcdColumns 16
@@ -25,12 +25,14 @@ LiquidCrystal_I2C lcd(0x27, lcdColumns, lcdRows);
 
 // Set voltage divider pin
 #define voltage_sensor_pin 26
+// Constant to quickly calculate voltage
+#define voltage_division_constant 33.4
 
 // Set temperature sensor pin
 #define temperature_sensor_pin 25
 // value of R1_temperature_sensor on temperature sensor board
 #define R1_temperature_sensor 10000 
-//steinhart-hart coeficients for thermistor
+// Steinhart-hart coeficients for thermistor
 #define c1 0.001129148
 #define c2 0.000234125
 #define c3 0.0000000876741
@@ -94,6 +96,14 @@ void lcd_print_lost_connection(){
   lcd.setCursor(0, 1);
   lcd.print("WiFi is lost");  
 }
+// function that prints "Couldn't connect to WiFi" on the LCD
+void lcd_print_no_connection(){
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print("Couldn't connect");
+  lcd.setCursor(0, 1);
+  lcd.print("to WiFi");  
+}
 // function that prints "Connecting to WiFi is lost" on the LCD
 void lcd_print_server_down(){
   lcd.clear();
@@ -150,8 +160,30 @@ int send_data(){
   }else{ // If WiFi status is compromised print message on the LCD
     lcd_print_lost_connection();
     Serial.println("Error in WiFi connection");
-    return -1;
+    delay(3000);
+    connect_to_WiFi();
   }  
+}
+
+// function that tries to connect to WiFi network with the given credentials "ssid" and "password"
+int connect_to_WiFi(){
+  // Try connection to local WiFi network using the specified credentials in "ssid" and "password"
+  WiFi.begin(ssid, password); 
+  
+  for(int i=0; i<10; i++) { // Continiously check for connection
+    // If connection is sucessful return 0 (success)
+    if(WiFi.status() != WL_CONNECTED){
+      // Show the connection was sucessful on the LCD
+      lcd_print_connected(); 
+      return 0;
+    }
+    delay(1000); // Delay is added to make sure the network doesn't mistake the ESP32 for DDOS bot
+    lcd_print_connecting();
+  }
+  // Show the connection failed on the LCD
+  lcd_print_no_connection();
+  // If connection is sucessful return -1 (failed)
+  return -1;
 }
  
 void setup() {
@@ -170,15 +202,7 @@ void setup() {
   lcd.print("Power On :D");
 
   delay(4000);   //Delay needed before calling the WiFi.begin
-  // Try connection to lockal WiFi network using the specified credentials in "ssid" and "password"
-  WiFi.begin(ssid, password); 
-  
-  while (WiFi.status() != WL_CONNECTED) { // Continiously check for connection
-    delay(1000); // Delay is added to make sure the network doesn't mistake the ESP32 for DDOS bot
-    lcd_print_connecting();
-  }
-  // Show the connection was sucessful on the LCD
-  lcd_print_connected();
+  connect_to_WiFi();
 
   // Allow allocation of all timers. This is required to controll the servos
   ESP32PWM::allocateTimer(0);
@@ -215,26 +239,25 @@ float measure_current(){
     return current > 0 ? current : 0;
 }
 
-// functin that measures the input of temperature sensor TU K13 an returns degrees Celsius
+// functin that measures voltage up to 33V using voltage divider comprised of 10 KOhm and 100 KOhm resistors
 float measure_voltage(){
     float input = analogRead(voltage_sensor_pin);
-    Serial.print( "Voltage:  " );
-    Serial.println( input / 33.5 ); //33.5 because the voltage divider is made using 51K and 10K resistors
-    return input / 33.5;
+    return input / voltage_division_constant; // voltage_division_constant is determined by the resistors 10 to 1 ratio
 }
 
-// functin that measures the input of temperature sensor TU K13 an returns degrees Celsius
+// functin that measures the input of temperature sensor KY-013 and returns degrees Celsius
 float measure_temperature(){
     int input = analogRead(temperature_sensor_pin);
-    float R2 = R1_temperature_sensor * (1023.0 / (float)input - 1); //calculate resistance on thermistor
+    float R2 = R1_temperature_sensor * (4096.0 / (float)input - 1); //calculate resistance on thermistor
     float logR2 = log(R2);
     float T = (1.0 / (c1 + c2*logR2 + c3*logR2*logR2*logR2)); // temperature in Kelvin
     T = T - 273.15; //convert Kelvin to Celcius
     //Serial.println("Temperature: " + String(T) + " C"); 
     return T;
-
 }
 
+// functin that measures and comapares the resistance of the two pairs of LDRs 
+// and moves the servos util the LDRs have the same resistance, which means they are evenly lit
 void controll_servo(){
   // Get measurement for LDR1
   int ldr1 = measure_resistance(ldr_pin_1) * ldr_multiplier_1; 
@@ -272,15 +295,13 @@ void controll_servo(){
 }
 
 void loop() {
-
   // Compare LDRs and move the servo if necessary
   controll_servo();
 
   // Send an HTTP POST request every 10 minutes
-  if ((millis() - lastTime) > timerDelay){
-    //send_data();
-    lastTime = millis();
+  if ((millis() - last_time) > timer_delay){
+    send_data();
+    last_time = millis();
   }
   delay(100);
-  
 }
